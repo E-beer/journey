@@ -1,0 +1,55 @@
+import os
+import pandas as pd
+from datetime import datetime
+
+def safe_read_excel(file_path):
+    """安全地读取Excel文件，增加错误处理"""
+    try:
+        return pd.read_excel(file_path, sheet_name=None)
+    except OSError as e:
+        print(f"读取文件时发生错误: {e}")
+        return None
+
+# 定义输出目录用于存放拆分的文件，确保路径正确无误
+output_dir = 'D:\TRY/1'
+os.makedirs(output_dir, exist_ok=True)
+
+# 假设data_sheets应从Excel文件加载，请确保提供正确的文件路径
+excel_file_path = 'D:\TRY/1225.xlsx'
+
+# 尝试安全地读取Excel文件
+data_sheets = safe_read_excel(excel_file_path)
+
+if data_sheets is not None:
+    # 获取当前日期，格式化为年月日形式
+    today_date = datetime.now().strftime('%Y%m%d')
+
+    # 检查关键列是否存在，避免KeyError
+    if '派遣公司' in data_sheets.get(next(iter(data_sheets)), {}).columns:
+        # 为每个公司创建单独的Excel文件
+        for company in set(data_sheets[next(iter(data_sheets))]['派遣公司'].dropna().unique()):
+            writer_path = os.path.join(output_dir, f"{company}_{today_date}.xlsx")
+            with pd.ExcelWriter(writer_path, engine='openpyxl') as writer:
+                for sheet_name, data in data_sheets.items():
+                    if '派遣公司' in data.columns:
+                        # 过滤当前公司的数据
+                        company_data = data[data['派遣公司'] == company]
+
+                        # 重置“序”列，使其从1开始排序
+                        if '序' in company_data.columns:
+                            company_data['序'] = range(1, len(company_data) + 1)
+
+                        # 对含有"序"列的数据进行排序（如果需要保持其他列也排序，则取消下面这行注释）
+                        # company_data = company_data.sort_values(by='序')
+
+                        company_data.to_excel(writer, sheet_name=sheet_name, index=False)
+                    else:
+                        data.to_excel(writer, sheet_name=sheet_name, index=False)
+
+        print(f"处理完成，带有日期的输出文件位于: {output_dir}")
+    else:
+        print("关键列'派遣公司'不存在于数据表中，请检查Excel文件。")
+else:
+    print("由于文件读取失败，处理未完成。")
+
+output_dir
